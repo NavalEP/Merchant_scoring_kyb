@@ -1,0 +1,42 @@
+.env
+.env.production
+.env.development
+.env.test
+.env.staging
+.env.production
+
+.venv
+venv
+.env
+__pycache__
+
+.next
+
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+.cursorignore
+
+.cursorrules
+
+# Ignore specific venv path
+
+
+# Ignore venv paths with backslashes (Windows style)
+**/venv/
+**/venv/**
+**/.venv/
+**/.venv/**
+
+# Ignore Python bytecode
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+/output
+
+
+
