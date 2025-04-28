@@ -1,0 +1,42 @@
+runtime: python39
+entrypoint: gunicorn -b :$PORT kyb_project.wsgi
+
+env_variables:
+  DJANGO_SETTINGS_MODULE: "kyb_project.settings"
+  SECRET_KEY: ""
+  
+  # Database configuration
+  DB_HOST: ""
+  DB_USER: ""
+  DB_PASSWORD: ""
+  DB_NAME: ""
+  DB_PORT: "5432"
+  
+  # API keys
+  GEOIQ_API_KEY: ""
+  GEOIQ_BASE_URL: ""
+  OUTSCRAPER_API_KEY: ""
+  OUTSCRAPER_BASE_URL: ""
+  
+  # Django configuration
+  DEBUG: "False"
+  ALLOWED_HOSTS: ".appspot.com,localhost"
+
+# Instance class configuration
+instance_class: F2
+
+# Automatic scaling configuration
+automatic_scaling:
+  target_cpu_utilization: 0.65
+  min_instances: 1
+  max_instances: 10
+
+# Static files
+handlers:
+- url: /static
+  static_dir: static/
+  secure: always
+
+- url: /.*
+  script: auto
+  secure: always

@@ -71,4 +71,22 @@ export const getReviewScoring = async (query: string, reviewsLimit: number = 60)
   }
 };
 
+export const customGoogleSearch = async (query: string, reviewsLimit: number = 100) => {
+  try {
+    console.log('Sending Google search request:', { query, reviewsLimit });
+    const response = await apiService.post('/api/outscraper_reviews/custom-search/', {
+      query,
+      reviews_limit: reviewsLimit
+    });
+    
+    console.log('Raw Custom Google search response:', response);
+    
+    // Just return the raw data and let the component handle the formatting
+    return response.data;
+  } catch (error) {
+    console.error('Custom Google search failed:', error);
+    throw error;
+  }
+};
+
 export default apiService; 

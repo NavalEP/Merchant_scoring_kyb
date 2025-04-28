@@ -2,6 +2,7 @@ from rest_framework import serializers
 from cpapp.models.practo import PractoDoctor
 from cpapp.models.justdial import JustDialDoctor, JustDialClinic
 from cpapp.models.nmc import NMCDoctor
+from cpapp.models.nmc_dental import NMCDentalDoctor
 
 
 class DoctorSearchSerializer(serializers.Serializer):
@@ -14,6 +15,11 @@ class DoctorSearchSerializer(serializers.Serializer):
     experience = serializers.CharField(required=False, allow_blank=True)
     qualification = serializers.CharField(required=False, allow_blank=True)
     rating = serializers.CharField(required=False, allow_blank=True)
+    rating_count = serializers.CharField(required=False, allow_blank=True)
+    education = serializers.CharField(required=False, allow_blank=True)
+    registration = serializers.CharField(required=False, allow_blank=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+    services = serializers.CharField(required=False, allow_blank=True)
     
     
 class ClinicSearchSerializer(serializers.Serializer):
@@ -25,13 +31,16 @@ class ClinicSearchSerializer(serializers.Serializer):
     location = serializers.CharField()
     rating = serializers.CharField(required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
+    type = serializers.CharField(required=False, allow_blank=True)
+    rating_count = serializers.CharField(required=False, allow_blank=True)
+    verified = serializers.CharField(required=False, allow_blank=True)
     
 
 class ScoreRequestSerializer(serializers.Serializer):
     """Serializer for score requests"""
     entity_type = serializers.ChoiceField(choices=['doctor', 'clinic'])
     entity_id = serializers.IntegerField()
-    source = serializers.ChoiceField(choices=['practo', 'justdial', 'nmc'])
+    source = serializers.ChoiceField(choices=['practo', 'justdial', 'nmc', 'nmc_dental', 'googlemap', 'bajaj', 'savein', 'new_practo'])
 
 
 class ScoreResponseSerializer(serializers.Serializer):

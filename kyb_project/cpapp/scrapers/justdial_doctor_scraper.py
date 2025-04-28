@@ -314,8 +314,9 @@ async def scrape_justdial_doctors(location, category, num_pages=3):
     
     # Use the updated URL format with proper filters
     # Construct URL based on category and location
-    if category.lower() == "ivf doctors":
-        url = f"https://www.justdial.com/{location}/IVF-Doctors/nct-10265455?trkid=559291-{location.lower()}-fcat&term=&filters=%5B%7B%22e%22%3A%224%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&filtersApplied=%5B%7B%22mv%22%3A%221182%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&checkin=1744934400&checkout=1745020800"
+    if category.lower() in ["ivf doctors", "ivf", "ivf doctor"]:
+        url = f"https://www.justdial.com/{location}/IVF-Doctors/nct-10265455?trkid=559316-{location.lower()}&term=IVF&filters=%5B%7B%22e%22%3A%224%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&filtersApplied=%5B%7B%22mv%22%3A%221182%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&checkin=1745712000&checkout=1745798400"
+        print(f"Using specialized IVF doctors URL: {url}")
     else:
         # Default URL format for other doctor categories
         url = f"https://www.justdial.com/{location}/{category}-in-{location}/nct-10989817?trkid=865483-{location.lower()}-fcat&term=&filters=%5B%7B%22e%22%3A%224%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&filtersApplied=%5B%7B%22mv%22%3A%221182%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&checkin=1744934400&checkout=1745020800"

@@ -255,10 +255,17 @@ class DoctorScoringEngine:
             
         # Check if exists in NMC database
         from cpapp.models.nmc import NMCDoctor
+        from cpapp.models.nmc_dental import NMCDentalDoctor
         
         try:
+            # Check in regular NMC database
             nmc_match = NMCDoctor.objects.filter(registrationNo=registration_no).exists()
             if nmc_match:
+                return True
+            
+            # Check in NMC dental database
+            nmc_dental_match = NMCDentalDoctor.objects.filter(registration_number=registration_no).exists()
+            if nmc_dental_match:
                 return True
                 
             # If we have full doctor data, we can do more checks
@@ -313,61 +320,102 @@ class DoctorScoringEngine:
         return 2
     
     def score_doctor(self, doctor_data, source="justdial"):
-        """Score a doctor based on different factors"""
+        """Score a doctor based on various factors"""
         scores = {}
         
-        # Extract data based on source
-        if source == "practo":
-            qualification = doctor_data.detailed_qualifications
-            experience = doctor_data.experience
-            rating = doctor_data.recommendation_percent
-            # Extract rating count (patient_stories for Practo)
-            rating_count = getattr(doctor_data, 'patient_stories', 0)
-            address = f"{doctor_data.doctor_address}, {doctor_data.location}"
-            registration_no = None  # Practo doesn't provide registration number
-            specialization = doctor_data.speciality
-        elif source == "justdial":
-            qualification = doctor_data.qualification
-            experience = doctor_data.experience
-            rating = doctor_data.rating
-            # Extract rating count for JustDial
+        # Extract basic information
+        doctor_name = ""
+        specialization = ""
+        qualification = ""
+        experience = ""
+        rating = 0
+        rating_count = 0
+        address = ""
+        location = ""
+        registration_no = None
+        
+        if source == "justdial":
+            doctor_name = getattr(doctor_data, 'doctor_name', "")
+            specialization = getattr(doctor_data, 'category', "")
+            qualification = getattr(doctor_data, 'qualification', "")
+            experience = getattr(doctor_data, 'experience', "")
+            rating = self.normalize_rating(getattr(doctor_data, 'rating', 0), source)
             rating_count = getattr(doctor_data, 'rating_count', 0)
-            address = doctor_data.clinic_address
-            registration_no = doctor_data.registration
-            specialization = doctor_data.specialization
-        elif source == "nmc":
-            qualification = doctor_data.doctorDegree
-            experience = None  # NMC doesn't provide experience
-            rating = None  # NMC doesn't provide ratings
-            rating_count = 0  # NMC doesn't provide rating count
-            address = doctor_data.address
-            registration_no = doctor_data.registrationNo
-            specialization = doctor_data.doctorDegree  # Using degree as specialization
-        else:
-            # Generic data extraction
-            qualification = getattr(doctor_data, 'qualification', '')
-            experience = getattr(doctor_data, 'experience', '')
-            rating = getattr(doctor_data, 'rating', '')
-            rating_count = getattr(doctor_data, 'rating_count', 0)
-            address = getattr(doctor_data, 'address', '')
-            registration_no = getattr(doctor_data, 'registration_no', None)
-            specialization = getattr(doctor_data, 'specialization', '')
+            address = getattr(doctor_data, 'clinic_address', "")
+            location = getattr(doctor_data, 'location', "")
+            registration_no = getattr(doctor_data, 'registration', None)
             
+        elif source == "practo":
+            doctor_name = getattr(doctor_data, 'name', "")
+            specialization = getattr(doctor_data, 'speciality', "")
+            qualification = getattr(doctor_data, 'detailed_qualifications', "")
+            experience = getattr(doctor_data, 'experience', "")
+            rating = self.normalize_rating(getattr(doctor_data, 'recommendation_percent', 0), source)
+            # Practo doesn't provide rating count
+            rating_count = 0
+            address = getattr(doctor_data, 'doctor_address', "")
+            location = getattr(doctor_data, 'location', "")
+            registration_no = None
+            
+        elif source == "new_practo":
+            doctor_name = getattr(doctor_data, 'doctor_name', "")
+            specialization = getattr(doctor_data, 'specialization', "")
+            qualification = getattr(doctor_data, 'qualification', "")
+            experience = getattr(doctor_data, 'experience', "")
+            rating = self.normalize_rating(getattr(doctor_data, 'rating', 0), "justdial")
+            rating_count = getattr(doctor_data, 'rating_count', 0)
+            
+            # Use the clinic_data property to get parsed JSON
+            address = ""
+            if hasattr(doctor_data, 'clinic_data'):
+                clinic_data = doctor_data.clinic_data
+                if isinstance(clinic_data, dict):
+                    address = clinic_data.get('address', '')
+            
+            location = getattr(doctor_data, 'location', "")
+            registration_no = getattr(doctor_data, 'registration', None)
+            
+        elif source == "nmc":
+            doctor_name = f"{getattr(doctor_data, 'firstName', '')} {getattr(doctor_data, 'lastName', '')}".strip()
+            specialization = ""  # NMC data doesn't have specialization
+            qualification = getattr(doctor_data, 'doctorDegree', "")
+            experience = ""  # NMC data doesn't have experience
+            rating = 0  # NMC data doesn't have ratings
+            rating_count = 0
+            address = getattr(doctor_data, 'address', "")
+            location = address
+            registration_no = getattr(doctor_data, 'registrationNo', None)
+            
+        elif source == "bajaj":
+            doctor_name = getattr(doctor_data, 'name', "")
+            specialization = getattr(doctor_data, 'specialities', "")
+            qualification = getattr(doctor_data, 'qualifications', "")
+            experience = getattr(doctor_data, 'experience', "")
+            rating = self.normalize_rating(getattr(doctor_data, 'rating_percent', 0), "practo")
+            rating_count = getattr(doctor_data, 'rating_count', 0)
+            address = getattr(doctor_data, 'clinic_address', "")
+            location = getattr(doctor_data, 'clinic_location', "")
+            registration_no = getattr(doctor_data, 'hpr_id', None)
+            
+        elif source == "savein":
+            doctor_name = getattr(doctor_data, 'doctor_name', "")
+            specialization = getattr(doctor_data, 'specialization', "")
+            qualification = getattr(doctor_data, 'qualification', "")
+            experience = getattr(doctor_data, 'experience', "")
+            rating = self.normalize_rating(getattr(doctor_data, 'rating', 0), "justdial")
+            rating_count = getattr(doctor_data, 'reviews_count', 0)
+            address = getattr(doctor_data, 'address', "")
+            location = getattr(doctor_data, 'location', "")
+            registration_no = None
+        
         # Calculate individual scores
         scores['qualification_score'] = self.calculate_qualification_score(qualification)
-        scores['experience_score'] = self.calculate_experience_score(experience) if experience else 5
+        scores['experience_score'] = self.calculate_experience_score(experience)
+        scores['rating_score'] = self.calculate_rating_score(rating, source, rating_count)
         
-        # Calculate both standard rating score and weighted rating score
-        normalized_rating = self.normalize_rating(rating, source) if rating else 0
-        if normalized_rating:
-            category = self.get_rating_category(normalized_rating)
-            scores['rating_score'] = self.rating_scores.get(category, 2)
-            # Calculate weighted rating score if rating count is available
-            scores['weighted_rating_score'] = self.calculate_weighted_rating(normalized_rating, rating_count) if rating_count else scores['rating_score']
-        else:
-            scores['rating_score'] = 5
-            scores['weighted_rating_score'] = 5
-            
+        # Calculate weighted rating score
+        scores['weighted_rating_score'] = self.calculate_weighted_rating(rating, rating_count) if rating_count else scores['rating_score']
+        
         scores['location_score'] = self.calculate_location_score(address)
         scores['specialization_score'] = self.calculate_specialization_score(specialization)
         
@@ -488,6 +536,7 @@ class DoctorScoringEngine:
         if associated_doctors:
             from cpapp.models.justdial import JustDialDoctor
             from cpapp.models.nmc import NMCDoctor
+            from cpapp.models.nmc_dental import NMCDentalDoctor
             
             # Parse list of associated doctors (comma-separated)
             doctor_names = [name.strip() for name in associated_doctors.split(',') if name.strip()]

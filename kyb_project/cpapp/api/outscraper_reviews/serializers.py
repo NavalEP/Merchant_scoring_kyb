@@ -22,4 +22,16 @@ class OutscraperReviewsSerializer(serializers.Serializer):
     fields = serializers.CharField(required=False, allow_null=True)
     async_request = serializers.BooleanField(default=True, required=False)
     ui = serializers.BooleanField(default=False, required=False)
-    webhook = serializers.URLField(required=False, allow_null=True) 
+    webhook = serializers.URLField(required=False, allow_null=True)
+
+class CustomSearchSerializer(serializers.Serializer):
+    """
+    Simplified serializer for custom search functionality
+    """
+    query = serializers.CharField(required=True, help_text="Search query for Google Maps places")
+    reviews_limit = serializers.IntegerField(
+        required=True, 
+        min_value=1, 
+        max_value=500, 
+        help_text="Number of reviews to fetch (1-500)"
+    ) 

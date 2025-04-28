@@ -5,10 +5,15 @@ from rest_framework import status, serializers
 from django.db.models import Q
 import logging
 import os
+import json
 
 from cpapp.models.practo import PractoDoctor
 from cpapp.models.justdial import JustDialDoctor, JustDialClinic
 from cpapp.models.nmc import NMCDoctor
+from cpapp.models.bajaj_doctor import BajajDoctor
+from cpapp.models.savein_doctor import SaveinDoctor
+from cpapp.models.google_map_data import GoogleMapData
+from cpapp.models.practor_new import NewPractoDoctor
 from cpapp.services.scoring_engine import DoctorScoringEngine
 from cpapp.services.review_scorer_integration import ReviewAnalysisService
 from .serializers import (
@@ -104,6 +109,105 @@ class SearchAPIView(APIView):
                     'rating': '',
                     'registration': doctor.registrationNo,
                 })
+                
+            # Search NMCDentalDoctor
+            from cpapp.models.nmc_dental import NMCDentalDoctor
+            nmc_dental_doctors = NMCDentalDoctor.objects.filter(
+                Q(full_name__icontains=query) | 
+                Q(qualification__icontains=query)
+            )[:10]
+            
+            for doctor in nmc_dental_doctors:
+                results.append({
+                    'id': doctor.id,
+                    'name': doctor.full_name,
+                    'source': 'nmc_dental',
+                    'location': doctor.state_medical_council if hasattr(doctor, 'state_medical_council') else '',
+                    'experience': '',
+                    'qualification': doctor.qualification,
+                    'rating': '',
+                    'registration': doctor.registration_number,
+                })
+            
+            # Search BajajDoctor
+            bajaj_doctors = BajajDoctor.objects.filter(
+                Q(name__icontains=query) | 
+                Q(specialities__icontains=query)
+            )[:10]
+            
+            for doctor in bajaj_doctors:
+                results.append({
+                    'id': doctor.id,
+                    'name': doctor.name,
+                    'source': 'bajaj',
+                    'speciality': doctor.specialities,
+                    'location': doctor.clinic_location,
+                    'experience': doctor.experience,
+                    'qualification': doctor.qualifications,
+                    'rating': doctor.rating_percent,
+                    'rating_count': doctor.rating_count,
+                    'address': doctor.clinic_address,
+                    'clinic_name': doctor.clinic_name,
+                    'hpr_id': doctor.hpr_id
+                })
+                
+            # Search SaveinDoctor
+            savein_doctors = SaveinDoctor.objects.filter(
+                Q(name__icontains=query) | 
+                Q(doctor_name__icontains=query) |
+                Q(specialization__icontains=query)
+            )[:10]
+            
+            for doctor in savein_doctors:
+                results.append({
+                    'id': doctor.id,
+                    'name': doctor.doctor_name,
+                    'source': 'savein',
+                    'speciality': doctor.specialization,
+                    'location': doctor.location,
+                    'experience': doctor.experience,
+                    'qualification': doctor.qualification,
+                    'rating': doctor.rating,
+                    'rating_count': doctor.reviews_count,
+                    'address': doctor.address,
+                    'consultation_fee': doctor.consultation_fee,
+                    'price_category': doctor.price_category,
+                    'services': doctor.services
+                })
+            
+            # Search NewPractoDoctor
+            new_practo_doctors = NewPractoDoctor.objects.filter(
+                Q(doctor_name__icontains=query) | 
+                Q(specialization__icontains=query)
+            )[:10]
+            
+            for doctor in new_practo_doctors:
+                try:
+                    clinic_address = ""
+                    
+                    # Use the clinic_data property instead of handling raw data
+                    if hasattr(doctor, 'clinic_data'):
+                        clinic_data = doctor.clinic_data
+                        if isinstance(clinic_data, dict):
+                            clinic_address = clinic_data.get('address', '')
+                    
+                    results.append({
+                        'id': doctor.id,
+                        'name': doctor.doctor_name,
+                        'source': 'new_practo',
+                        'speciality': doctor.specialization,
+                        'location': doctor.location,
+                        'experience': doctor.experience,
+                        'qualification': doctor.qualification,
+                        'rating': doctor.rating,
+                        'rating_count': doctor.rating_count,
+                        'address': clinic_address,
+                        'services': doctor.services,
+                        'education': doctor.education,
+                        'registration': doctor.registration,
+                    })
+                except Exception as e:
+                    logger.error(f"Error processing NewPractoDoctor {doctor.id}: {str(e)}")
         
         # Search for clinics
         if entity_type in ['all', 'clinic']:
@@ -119,10 +223,34 @@ class SearchAPIView(APIView):
                     'name': clinic.name,
                     'source': 'justdial',
                     'category': clinic.category,
-                    'location': clinic.location,
+                    'speciality': clinic.category,
+                    'location': clinic.address,
                     'rating': clinic.rating,
                     'address': clinic.address
-
+                })
+            
+            # Search GoogleMapData
+            logger.info(f"Searching GoogleMapData for query: {query}")
+            google_map_results = GoogleMapData.objects.filter(
+                Q(name__icontains=query) | 
+                Q(category__icontains=query) |
+                Q(full_address__icontains=query)
+            )[:10]
+            
+            logger.info(f"Found {google_map_results.count()} GoogleMapData results")
+            
+            for place in google_map_results:
+                results.append({
+                    'id': place.id,
+                    'name': place.name,
+                    'source': 'googlemap',
+                    'category': place.category,
+                    'type': place.type,
+                    'location': place.full_address,
+                    'address': place.full_address,
+                    'rating': place.rating,
+                    'rating_count': place.reviews,
+                    'verified': place.verified
                 })
         
         # Serialize based on entity type
@@ -197,6 +325,43 @@ class ScoreAPIView(APIView):
                         {"error": "Doctor not found"},
                         status=status.HTTP_404_NOT_FOUND
                     )
+            elif source == 'nmc_dental':
+                from cpapp.models.nmc_dental import NMCDentalDoctor
+                try:
+                    entity = NMCDentalDoctor.objects.get(id=entity_id)
+                    name = entity.full_name
+                except NMCDentalDoctor.DoesNotExist:
+                    return Response(
+                        {"error": "Dental doctor not found"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            elif source == 'bajaj':
+                try:
+                    entity = BajajDoctor.objects.get(id=entity_id)
+                    name = entity.name
+                except BajajDoctor.DoesNotExist:
+                    return Response(
+                        {"error": "Bajaj doctor not found"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            elif source == 'savein':
+                try:
+                    entity = SaveinDoctor.objects.get(id=entity_id)
+                    name = entity.name or entity.doctor_name
+                except SaveinDoctor.DoesNotExist:
+                    return Response(
+                        {"error": "Savein doctor not found"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            elif source == 'new_practo':
+                try:
+                    entity = NewPractoDoctor.objects.get(id=entity_id)
+                    name = entity.doctor_name
+                except NewPractoDoctor.DoesNotExist:
+                    return Response(
+                        {"error": "New Practo doctor not found"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
             
             # Score the doctor
             score_results = scoring_engine.score_doctor(entity, source)
@@ -209,6 +374,15 @@ class ScoreAPIView(APIView):
                 except JustDialClinic.DoesNotExist:
                     return Response(
                         {"error": "Clinic not found"},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            elif source == 'googlemap':
+                try:
+                    entity = GoogleMapData.objects.get(id=entity_id)
+                    name = entity.name
+                except GoogleMapData.DoesNotExist:
+                    return Response(
+                        {"error": "Google Maps place not found"},
                         status=status.HTTP_404_NOT_FOUND
                     )
             else:
@@ -254,7 +428,7 @@ class ReviewScoringAPIView(APIView):
             )
         
         # Get API key from environment or settings
-        api_key = os.getenv("OUTSCRAPER_API_KEY")
+        api_key = os.getenv("VITE_OUTSCRAPER_API_KEY")
         if not api_key:
             return Response(
                 {"error": "Outscraper API key not configured"},
@@ -317,7 +491,7 @@ class ReviewScoringAPIView(APIView):
         request_id = serializer.validated_data['request_id']
         
         # Get API key from environment or settings
-        api_key = os.getenv("OUTSCRAPER_API_KEY")
+        api_key = os.getenv("VITE_OUTSCRAPER_API_KEY")
         if not api_key:
             return Response(
                 {"error": "Outscraper API key not configured"},

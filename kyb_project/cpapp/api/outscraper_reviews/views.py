@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from typing import Dict, Any, List, Optional
 from ...services.Google_review_out_scraper import OutscraperMapsReviewsAPI
-from .serializers import OutscraperReviewsSerializer
+from .serializers import OutscraperReviewsSerializer, CustomSearchSerializer
 import os
 
 class OutscraperReviewsView(APIView):
@@ -59,6 +59,52 @@ class OutscraperReviewsResultsView(APIView):
             
             client = OutscraperMapsReviewsAPI(api_key=api_key)
             response = client.get_results(request_id)
+            return Response(response, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class CustomSearchView(APIView):
+    """
+    API endpoint for simplified search using Outscraper Google Reviews API
+    """
+    
+    def post(self, request) -> Response:
+        try:
+            serializer = CustomSearchSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(
+                    serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get API key from environment variables
+            api_key = os.getenv("VITE_OUTSCRAPER_API_KEY")
+            if not api_key:
+                return Response(
+                    {"error": "OUTSCRAPER_API_KEY not found in environment variables"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            # Extract data from the serializer
+            query = serializer.validated_data["query"]
+            reviews_limit = serializer.validated_data["reviews_limit"]
+            
+            # Set up parameters for OutScraper API
+            params = {
+                "query": query,
+                "reviews_limit": reviews_limit,
+                "sort": "most_relevant",
+                "language": "en",
+                "async_request": False
+            }
+            
+            client = OutscraperMapsReviewsAPI(api_key=api_key)
+            response = client.get_reviews(**params)
+            
             return Response(response, status=status.HTTP_200_OK)
             
         except Exception as e:

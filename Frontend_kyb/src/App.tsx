@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search, Building2, User, Guitar as Hospital, Star, Globe, Stethoscope } from 'lucide-react';
-import { searchEntities, getEntityScore, getReviewScoring } from './services/api';
+import { searchEntities, getEntityScore, getReviewScoring, customGoogleSearch } from './services/api';
 
 interface SearchResult {
   entity_id: number;
@@ -57,6 +57,39 @@ interface ReviewScoringResponse {
   }>;
 }
 
+interface GoogleReviewResult {
+  // Original properties
+  name?: string;
+  address?: string;
+  place_id?: string;
+  cid?: string;
+  rating?: number;
+  reviews_count?: number;
+  reviews?: Array<{
+    text?: string;
+    rating?: number;
+    date?: string;
+    likes?: number;
+    author_name?: string;
+    author_id?: string;
+  }>;
+  
+  // Alternative property names in different response formats
+  place_name?: string;
+  full_address?: string;
+  stars?: number;
+  reviews_number?: number;
+  reviews_data?: Array<{
+    review_text?: string;
+    review_rating?: number;
+    review_datetime_utc?: string;
+    name?: string;
+    author_name?: string;
+    [key: string]: any;
+  }>;
+  [key: string]: any; // Allow any other properties
+}
+
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('doctor');
@@ -67,6 +100,12 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<SearchResult | null>(null);
+  // Custom Google search state
+  const [showGoogleSearch, setShowGoogleSearch] = useState(false);
+  const [googleSearchQuery, setGoogleSearchQuery] = useState('');
+  const [googleReviewsLimit, setGoogleReviewsLimit] = useState(100);
+  const [googleResults, setGoogleResults] = useState<GoogleReviewResult[]>([]);
+  const [isGoogleSearchLoading, setIsGoogleSearchLoading] = useState(false);
 
   const categories = [
     { id: 'doctor', label: 'Doctor', icon: User },
@@ -125,6 +164,198 @@ function App() {
     setSelectedDoctor(doctor);
   };
 
+  // Custom Google search function
+  const handleCustomGoogleSearch = async () => {
+    if (!googleSearchQuery.trim()) return;
+    
+    setIsGoogleSearchLoading(true);
+    try {
+      const data = await customGoogleSearch(googleSearchQuery, googleReviewsLimit);
+      console.log('Custom Google search full response:', data);
+      
+      // Handle different response formats
+      if (data && data.data && Array.isArray(data.data)) {
+        // Standard format with data array
+        setGoogleResults(data.data);
+      } else if (data && Array.isArray(data)) {
+        // Direct array format
+        setGoogleResults(data);
+      } else if (data && typeof data === 'object') {
+        // Try to extract data from a nested structure
+        const extractedData = extractReviewsData(data);
+        if (extractedData.length > 0) {
+          setGoogleResults(extractedData);
+        } else {
+          console.error('Could not find reviews data in response:', data);
+          setGoogleResults([]);
+        }
+      } else {
+        console.error('Unexpected Google search response format:', data);
+        setGoogleResults([]);
+      }
+    } catch (error) {
+      console.error('Google search failed:', error);
+      setGoogleResults([]);
+    } finally {
+      setIsGoogleSearchLoading(false);
+    }
+  };
+  
+  // Helper function to extract review data from different response formats
+  const extractReviewsData = (data: any): GoogleReviewResult[] => {
+    // Try different paths where the data might be
+    if (data.data && Array.isArray(data.data)) {
+      return data.data;
+    } else if (data.results && Array.isArray(data.results)) {
+      return data.results;
+    } else if (data.response && data.response.data && Array.isArray(data.response.data)) {
+      return data.response.data;
+    }
+    
+    // If we have a single result object
+    if (data.name && data.address && (data.reviews || data.reviews_data)) {
+      return [data];
+    }
+    
+    // Last resort: look for any array property that might contain our data
+    for (const key in data) {
+      if (Array.isArray(data[key]) && data[key].length > 0) {
+        // Check if array items look like review results
+        const item = data[key][0];
+        if (item && (item.name || item.place_name) && (item.reviews || item.reviews_data)) {
+          return data[key];
+        }
+      }
+    }
+    
+    return [];
+  };
+
+  // Component for the Google review search
+  const GoogleSearchComponent = () => {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <Globe className="h-5 w-5 text-blue-600" />
+          Google Reviews Search
+        </h2>
+        
+        <div className="mb-4">
+          <label htmlFor="googleSearch" className="block text-sm font-medium text-gray-700 mb-1">
+            Search for place/business:
+          </label>
+          <div className="flex gap-4">
+            <input
+              id="googleSearch"
+              type="text"
+              value={googleSearchQuery}
+              onChange={(e) => setGoogleSearchQuery(e.target.value)}
+              placeholder="Search for restaurants, hotels, businesses..."
+              className="flex-1 pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+        
+        <div className="mb-4">
+          <label htmlFor="reviewsCount" className="block text-sm font-medium text-gray-700 mb-1">
+            Number of reviews to fetch:
+          </label>
+          <div className="w-1/3">
+            <input
+              id="reviewsCount"
+              type="number"
+              min="1"
+              max="500"
+              value={googleReviewsLimit}
+              onChange={(e) => setGoogleReviewsLimit(parseInt(e.target.value))}
+              className="w-full pl-3 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+        
+        <button
+          onClick={handleCustomGoogleSearch}
+          disabled={isGoogleSearchLoading || !googleSearchQuery.trim()}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+        >
+          {isGoogleSearchLoading ? 'Searching...' : 'Search Google Reviews'}
+        </button>
+      </div>
+    );
+  };
+
+  // Component to display Google review results
+  const GoogleReviewResults = () => {
+    if (googleResults.length === 0) return null;
+    
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <h2 className="text-xl font-bold mb-4">Search Results</h2>
+        
+        {googleResults.map((result, index) => {
+          // Handle possible different response structures
+          const name = result.name || result.place_name || "Unknown";
+          const rating = result.rating || result.stars || 0;
+          const reviews_count = result.reviews_count || result.reviews_number || (result.reviews && result.reviews.length) || 0;
+          const address = result.address || result.full_address || "";
+          
+          // Get reviews from either 'reviews' or 'reviews_data' array
+          const reviews = result.reviews || result.reviews_data || [];
+          
+          return (
+            <div key={index} className="border-b border-gray-200 pb-4 mb-4 last:border-0 last:mb-0 last:pb-0">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-lg font-semibold">{name}</h3>
+                <div className="flex items-center">
+                  <Star className="h-5 w-5 text-yellow-500 mr-1" />
+                  <span className="font-medium">{parseFloat(rating.toString()).toFixed(1)}</span>
+                  <span className="text-gray-500 ml-1">({reviews_count} reviews)</span>
+                </div>
+              </div>
+              <p className="text-gray-600 mb-3">{address}</p>
+              
+              {reviews.length > 0 ? (
+                <>
+                  <h4 className="font-medium mb-2">Latest Reviews:</h4>
+                  <div className="space-y-3">
+                    {reviews.slice(0, 3).map((review: any, reviewIndex) => {
+                      // Handle different review structures
+                      const reviewText = review.text || review.review_text || "";
+                      const reviewRating = review.rating || review.review_rating || 0;
+                      const authorName = review.author_name || review.name || "Anonymous";
+                      const date = review.date || review.review_datetime_utc || "";
+                      
+                      return (
+                        <div key={reviewIndex} className="bg-gray-50 p-3 rounded">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium">{authorName}</span>
+                            <div className="flex items-center">
+                              <Star className="h-4 w-4 text-yellow-500 mr-1" />
+                              <span>{reviewRating}</span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-700">{reviewText.length > 200 ? `${reviewText.substring(0, 200)}...` : reviewText}</p>
+                          <p className="text-xs text-gray-500 mt-1">{date}</p>
+                        </div>
+                      );
+                    })}
+                    {reviews.length > 3 && (
+                      <p className="text-sm text-blue-600 cursor-pointer hover:underline">
+                        View {reviews.length - 3} more reviews
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-500 italic">No reviews available</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -170,7 +401,21 @@ function App() {
               );
             })}
           </div>
+          
+          <div className="flex justify-between mt-4">
+            <button
+              onClick={() => setShowGoogleSearch(!showGoogleSearch)}
+              className="flex items-center gap-2 px-4 py-2 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
+            >
+              <Globe className="h-5 w-5" />
+              {showGoogleSearch ? 'Hide Google Search' : 'Search Google Reviews'}
+            </button>
+          </div>
         </div>
+        
+        {/* Google Review Search Section */}
+        {showGoogleSearch && <GoogleSearchComponent />}
+        {showGoogleSearch && <GoogleReviewResults />}
 
         {searchResults.length > 0 && (
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -296,6 +541,17 @@ function App() {
                       Based on {scoreData.score_breakdown.rating_count} ratings
                     </div>
                   )}
+                </div>
+                
+                <div className="border rounded-lg p-4">
+                  <h4 className="font-medium mb-2">Weighted Rating</h4>
+                  <div className="flex justify-between">
+                    <span>Score: {scoreData.score_breakdown.weighted_rating_score}</span>
+                    <span>Normalized: {scoreData.score_breakdown.normalized_weighted_rating_score}%</span>
+                  </div>
+                  <div className="mt-1 text-sm text-gray-500">
+                    Weighted score based on rating value and count
+                  </div>
                 </div>
                 
                 <div className="border rounded-lg p-4">
