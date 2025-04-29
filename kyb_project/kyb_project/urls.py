@@ -19,8 +19,6 @@ from django.urls import path, include
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.static import serve
-import os
 
 
 urlpatterns = [
@@ -34,8 +32,4 @@ urlpatterns = [
 # Explicitly adding static file serving for development
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    urlpatterns += [
-        path('static/assets/<path:path>', serve, {
-            'document_root': os.path.join(settings.BASE_DIR, 'kyb_project/static/assets')
-        }),
-    ]
+    urlpatterns += static('/static/assets/', document_root=settings.BASE_DIR / 'kyb_project/static/assets')
