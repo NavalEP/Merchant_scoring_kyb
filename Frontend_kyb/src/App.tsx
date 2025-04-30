@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Building2, User, Guitar as Hospital, Star, Globe, Stethoscope, ChevronDown, ChevronUp } from 'lucide-react';
 import { searchEntities, getEntityScore, getReviewScoring, customGoogleSearch } from './services/api';
 
@@ -97,7 +97,6 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState('doctor');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [scoreData, setScoreData] = useState<ScoreResponse | null>(null);
-  const [reviewsLimit, setReviewsLimit] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<SearchResult | null>(null);
   // Custom Google search state
@@ -182,6 +181,14 @@ function App() {
       const data = await customGoogleSearch(googleSearchQuery, googleReviewsLimit);
       console.log('Raw Custom Google search response:', data);
       
+      // Check if data contains an error
+      if (data && data.error) {
+        console.error('API returned an error:', data.error);
+        alert(`Search failed: ${data.error}`);
+        setGoogleResults([]);
+        return;
+      }
+      
       // Process the response data through our normalizer
       const processedResults = extractReviewsData(data);
       
@@ -190,10 +197,27 @@ function App() {
         setGoogleResults(processedResults);
       } else {
         console.error('No results could be extracted from the response:', data);
+        alert('No results found. Please try a different search query.');
         setGoogleResults([]);
       }
     } catch (error) {
       console.error('Custom Google search failed:', error);
+      // Display a user-friendly error message
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        // Try to extract the most useful error information
+        const errorObj = error as any;
+        if (errorObj.response?.data?.error) {
+          errorMessage = errorObj.response.data.error;
+        } else if (errorObj.message) {
+          errorMessage = errorObj.message;
+        }
+      }
+      
+      alert(`Search failed: ${errorMessage}`);
       setGoogleResults([]);
     } finally {
       setIsGoogleSearchLoading(false);
@@ -203,6 +227,18 @@ function App() {
   // Helper function to extract review data from different response formats
   const extractReviewsData = (data: any): GoogleReviewResult[] => {
     console.log('Extracting review data from:', data);
+    
+    // Handle null or undefined data
+    if (!data) {
+      console.error('Empty data received');
+      return [];
+    }
+    
+    // Handle Outscraper-specific format first (as seen in server logs)
+    if (data.status === 'Success' && data.data && Array.isArray(data.data)) {
+      console.log('Detected Outscraper standard format with status Success');
+      return data.data.map(normalizeReviewItem);
+    }
     
     // If data is already an array, check if it has the expected format
     if (Array.isArray(data)) {
@@ -312,10 +348,12 @@ function App() {
       setIsAnalyzing(true);
       setLocalReviewScoring(null);
       try {
+        console.log('Sending review scoring request for:', localGoogleSearchQuery);
         const data = await getReviewScoring(localGoogleSearchQuery, localReviewsLimit);
         setLocalReviewScoring(data);
       } catch (error) {
         console.error('Review scoring analysis failed:', error);
+        alert(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
       } finally {
         setIsAnalyzing(false);
       }

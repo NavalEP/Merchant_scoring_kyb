@@ -22,7 +22,22 @@ class OutscraperMapsReviewsAPI:
         Args:
             api_key: Your Outscraper API key
         """
-        self.api_key = api_key or os.getenv("OUTSCRAPER_API_KEY")
+        # Log API key initialization (safely)
+        logger.debug(f"Initializing OutscraperMapsReviewsAPI with key length: {len(api_key) if api_key else 0}")
+        
+        # Handle potential empty string or None values
+        if not api_key or api_key.strip() == "":
+            # Try to get from environment if not provided
+            backup_key = os.getenv("OUTSCRAPER_API_KEY") or os.getenv("VITE_OUTSCRAPER_API_KEY")
+            
+            if backup_key and backup_key.strip() != "":
+                logger.info("Using API key from environment variables")
+                api_key = backup_key
+            else:
+                logger.error("No valid API key provided or found in environment variables")
+                # We'll still initialize, but requests will fail
+        
+        self.api_key = api_key
         self.headers = {
             "X-API-KEY": api_key,
             "Accept": "application/json"
@@ -71,6 +86,13 @@ class OutscraperMapsReviewsAPI:
         Returns:
             Dictionary with response data containing place and review information
         """
+        logger.info(f"Getting reviews for query: {query} with limit: {reviews_limit}")
+        
+        if not self.api_key or self.api_key.strip() == "":
+            error_msg = "API key is missing or empty"
+            logger.error(error_msg)
+            return {"error": error_msg, "status": "error"}
+            
         params = {
             "query": query,
             "reviewsLimit": reviews_limit,
@@ -103,17 +125,38 @@ class OutscraperMapsReviewsAPI:
             params["webhook"] = webhook
             
         try:
+            logger.debug(f"Making request to Outscraper API with params: {params}")
             response = requests.get(self.BASE_URL, headers=self.headers, params=params)
+            
+            # Log response status and details
+            logger.debug(f"Response status code: {response.status_code}")
+            
+            # Handle HTTP errors properly
+            if response.status_code >= 400:
+                logger.error(f"HTTP error: {response.status_code}, Response: {response.text}")
+                try:
+                    error_data = response.json()
+                    return {"error": error_data.get("error", "Unknown API error"), "status": "error", "http_status": response.status_code}
+                except Exception:
+                    return {"error": f"HTTP Error {response.status_code}: {response.text}", "status": "error"}
+            
             response.raise_for_status()
             
             if response.status_code == 202:
                 # Async request submitted, return request ID for later retrieval
+                logger.info("Async request submitted successfully")
                 return {"status": "pending", "request_id": response.json().get("id")}
             
-            return response.json()
+            result = response.json()
+            logger.info(f"Successfully retrieved reviews. Data contains {len(result.get('data', []))} places")
+            return result
+            
         except requests.exceptions.RequestException as e:
             logger.error(f"Error making request to Outscraper API: {str(e)}")
-            raise
+            return {"error": f"Request error: {str(e)}", "status": "error"}
+        except Exception as e:
+            logger.exception(f"Unexpected error in get_reviews: {str(e)}")
+            return {"error": f"Unexpected error: {str(e)}", "status": "error"}
     
     def get_results(self, request_id: str) -> Dict[str, Any]:
         """
@@ -125,12 +168,34 @@ class OutscraperMapsReviewsAPI:
         Returns:
             Dictionary with response data containing place and review information
         """
+        if not self.api_key or self.api_key.strip() == "":
+            error_msg = "API key is missing or empty"
+            logger.error(error_msg)
+            return {"error": error_msg, "status": "error"}
+            
         url = f"https://api.app.outscraper.com/requests/{request_id}"
         
         try:
+            logger.info(f"Getting results for request ID: {request_id}")
             response = requests.get(url, headers=self.headers)
+            
+            # Handle HTTP errors properly
+            if response.status_code >= 400:
+                logger.error(f"HTTP error: {response.status_code}, Response: {response.text}")
+                try:
+                    error_data = response.json()
+                    return {"error": error_data.get("error", "Unknown API error"), "status": "error"}
+                except Exception:
+                    return {"error": f"HTTP Error {response.status_code}: {response.text}", "status": "error"}
+                    
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            logger.info(f"Successfully retrieved results for request ID: {request_id}")
+            return result
+            
         except requests.exceptions.RequestException as e:
             logger.error(f"Error retrieving results from Outscraper API: {str(e)}")
-            raise
+            return {"error": f"Request error: {str(e)}", "status": "error"}
+        except Exception as e:
+            logger.exception(f"Unexpected error in get_results: {str(e)}")
+            return {"error": f"Unexpected error: {str(e)}", "status": "error"}

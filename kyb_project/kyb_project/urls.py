@@ -32,4 +32,9 @@ urlpatterns = [
 # Explicitly adding static file serving for development
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    urlpatterns += static('/static/assets/', document_root=settings.BASE_DIR / 'kyb_project/static/assets')
+    # For direct URL path mapping to actual files in the static/assets directory
+    urlpatterns += [
+        path('assets/<path:path>', lambda request, path: static.serve(
+            request, path, document_root=str(settings.BASE_DIR / 'kyb_project/static/assets')
+        ))
+    ]

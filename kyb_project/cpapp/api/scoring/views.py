@@ -419,19 +419,24 @@ class ReviewScoringAPIView(APIView):
         
         Fetches Google reviews using Outscraper API and scores them for authenticity.
         """
+        logger.info(f"ReviewScoringAPIView received request: {request.data}")
         serializer = ReviewScoringRequestSerializer(data=request.data)
         
         if not serializer.is_valid():
+            logger.error(f"Invalid request data: {serializer.errors}")
             return Response(
-                serializer.errors,
+                {"error": f"Invalid request data: {serializer.errors}"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         # Get API key from environment or settings
-        api_key = os.getenv("VITE_OUTSCRAPER_API_KEY")
+        api_key = os.getenv("OUTSCRAPER_API_KEY") or os.getenv("VITE_OUTSCRAPER_API_KEY")
+        logger.debug(f"API key present: {bool(api_key)}")
+        
         if not api_key:
+            logger.error("Outscraper API key not configured")
             return Response(
-                {"error": "Outscraper API key not configured"},
+                {"error": "Outscraper API key not configured. Please set the OUTSCRAPER_API_KEY environment variable."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
@@ -446,7 +451,7 @@ class ReviewScoringAPIView(APIView):
         async_request = serializer.validated_data.get('async_request', True)
         
         # Fetch and score reviews
-        logger.info(f"Fetching and scoring reviews for: {query}")
+        logger.info(f"Fetching and scoring reviews for: {query} with limit: {reviews_limit}")
         
         try:
             # Process the reviews
@@ -457,6 +462,18 @@ class ReviewScoringAPIView(APIView):
                 language=language,
                 async_request=async_request
             )
+            
+            logger.info(f"Received review processing result: {type(result)}")
+            logger.debug(f"Result details: {result}")
+            
+            # Check for empty results
+            if not result or (isinstance(result, dict) and 'error' in result):
+                error_msg = result.get('error', 'No results found') if isinstance(result, dict) else 'No reviews found'
+                logger.warning(f"Empty or error result: {error_msg}")
+                return Response(
+                    {"error": error_msg},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             
             # Handle async requests
             if async_request and result.get("status") == "pending":
@@ -470,7 +487,7 @@ class ReviewScoringAPIView(APIView):
             return Response(result)
             
         except Exception as e:
-            logger.error(f"Error processing reviews: {str(e)}")
+            logger.exception(f"Error processing reviews: {str(e)}")
             return Response(
                 {"error": f"Error processing reviews: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -491,7 +508,7 @@ class ReviewScoringAPIView(APIView):
         request_id = serializer.validated_data['request_id']
         
         # Get API key from environment or settings
-        api_key = os.getenv("VITE_OUTSCRAPER_API_KEY")
+        api_key = os.getenv("OUTSCRAPER_API_KEY") or os.getenv("VITE_OUTSCRAPER_API_KEY")
         if not api_key:
             return Response(
                 {"error": "Outscraper API key not configured"},
