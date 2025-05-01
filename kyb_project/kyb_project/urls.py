@@ -19,6 +19,7 @@ from django.urls import path, include, re_path
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib.staticfiles.views import serve
 
 
 urlpatterns = [
@@ -33,9 +34,9 @@ urlpatterns = [
 # Explicitly adding static file serving for development
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    # For direct URL path mapping to actual files in the static/assets directory
+    # For static files in the assets directory
     urlpatterns += [
-        path('assets/<path:path>', lambda request, path: static.serve(
-            request, path, document_root=str(settings.BASE_DIR / 'kyb_project/static/assets')
-        ))
+        path('static/assets/<path:path>', serve, {'document_root': settings.BASE_DIR / 'static/assets'}),
+        # Fallback for direct asset paths
+        path('assets/<path:path>', serve, {'document_root': settings.BASE_DIR / 'static/assets'})
     ]

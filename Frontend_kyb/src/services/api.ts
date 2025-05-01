@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { AxiosError } from 'axios';
 
-// Prioritize environment variables, with fallback to localhost for development
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Get API base URL from environment variables with fallback
+export const BASE_URL = window.location.origin;
 
 // Log the API base URL for debugging purposes
 console.log('API Base URL:', BASE_URL);

@@ -60,9 +60,9 @@ CORS_ALLOW_CREDENTIALS = True
 
 # For more fine-grained control if needed
 CORS_ALLOWED_ORIGINS = [
+    "http://34.44.244.79",  # Removed trailing slash
     "http://localhost:5173",  # Vite default dev server
     "http://localhost:3000",
-    "https://kyb-merchant-scoring.netlify.app",
 ]
 
 ROOT_URLCONF = 'kyb_project.urls'
@@ -140,6 +140,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
+
+# Use default static files storage
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 
 # Default primary key field type
