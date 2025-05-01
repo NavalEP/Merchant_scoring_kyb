@@ -2,7 +2,7 @@ import axios from 'axios';
 import { AxiosError } from 'axios';
 
 // Prioritize environment variables, with fallback to localhost for development
-const BASE_URL = 'http://34.44.244.79/';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Log the API base URL for debugging purposes
 console.log('API Base URL:', BASE_URL);

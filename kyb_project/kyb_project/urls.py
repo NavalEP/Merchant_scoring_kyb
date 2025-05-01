@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
@@ -26,7 +26,8 @@ urlpatterns = [
     path('api/geoiq/', include('cpapp.api.GeoIQ.urls')),
     path('api/scoring/', include('cpapp.api.scoring.urls')),
     path('api/outscraper_reviews/', include('cpapp.api.outscraper_reviews.urls')),
-    path('', TemplateView.as_view(template_name='index.html'), name='home'),
+    # Handle any non-API route with our React app
+    re_path(r'^(?!api/).*$', TemplateView.as_view(template_name='index.html'), name='home'),
 ]
 
 # Explicitly adding static file serving for development
