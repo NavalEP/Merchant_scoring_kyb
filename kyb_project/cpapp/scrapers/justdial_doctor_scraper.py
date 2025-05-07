@@ -352,24 +352,64 @@ async def scrape_justdial_doctors(location, category, num_pages=3):
             html_content = await page.content()
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Fix the selector to match the actual HTML structure
-            doctor_link_elements = soup.select("a.resultbox[aria-label*='contract info']")
+            # Based on the sample HTML, we need to extract links from divs with specific aria-labels
+            doctor_links = []
             
-            # Add fallback selectors if the first one doesn't work
-            if not doctor_link_elements:
-                print("Primary selector failed, trying alternative selectors...")
-                doctor_link_elements = soup.select("a.resultbox")
+            # Extract directly from the resultbox divs with aria-label in format shown in sample HTML
+            resultbox_divs = soup.select('div.jsx-ee3d18659dbf4034.resultbox[aria-label*="contract info of"]')
+            print(f"Found {len(resultbox_divs)} resultbox divs with aria-label")
+            
+            if not resultbox_divs:
+                # Try getting all resultbox elements as fallback
+                resultbox_divs = soup.select('div.jsx-ee3d18659dbf4034.resultbox')
+                print(f"Found {len(resultbox_divs)} general resultbox divs")
+            
+            # Extract IDs from resultbox divs and construct URLs directly
+            for div in resultbox_divs:
+                if div_id := div.get('id'):
+                    # Extract doctor name from aria-label if available
+                    doctor_name = ""
+                    if aria_label := div.get('aria-label'):
+                        if 'contract info of' in aria_label:
+                            doctor_name = aria_label.replace('contract info of', '').strip()
+                    
+                    # Construct URL using ID and location
+                    doctor_url = f"https://www.justdial.com/{location}/viewid-{div_id}"
+                    doctor_links.append(doctor_url)
+                    print(f"Added link for: {doctor_name}")
+            
+            # If still no links found, try direct JavaScript implementation to extract IDs
+            if not doctor_links:
+                print("Attempting to extract IDs using JavaScript...")
+                doctor_ids = await page.evaluate("""
+                    () => {
+                        const ids = [];
+                        const resultBoxes = document.querySelectorAll('div.jsx-ee3d18659dbf4034.resultbox');
+                        resultBoxes.forEach(box => {
+                            if (box.id) {
+                                ids.push({
+                                    id: box.id,
+                                    name: box.getAttribute('aria-label') || ''
+                                });
+                            }
+                        });
+                        return ids;
+                    }
+                """)
                 
-            if not doctor_link_elements:
-                print("Alternative selector failed, trying generic link selector in result boxes...")
-                doctor_link_elements = soup.select("div.resultbox_info > a")
+                for item in doctor_ids:
+                    doctor_id = item.get('id')
+                    doctor_name = item.get('name', '').replace('contract info of', '').strip()
+                    doctor_url = f"https://www.justdial.com/{location}/viewid-{doctor_id}"
+                    doctor_links.append(doctor_url)
+                    print(f"Added link for: {doctor_name} via JavaScript")
             
-            # Debug information to understand what we're finding
-            print(f"Found {len(doctor_link_elements)} {category} link elements")
+            total_doctors_found = len(doctor_links)
+            print(f"Found {total_doctors_found} {category} links on page {current_page}")
             
-            if not doctor_link_elements:
+            # If still no links, we can't proceed
+            if total_doctors_found == 0:
                 print(f"No {category} links found on page {current_page}")
-                # Debug the page structure to help identify the correct selector
                 print("Dumping sample HTML for debugging:")
                 result_boxes = soup.select("div.jsx-ee3d18659dbf4034.resultbox_info")
                 if result_boxes:
@@ -378,19 +418,6 @@ async def scrape_justdial_doctors(location, category, num_pages=3):
                         print("Sample result box HTML:")
                         print(result_boxes[0].parent.prettify()[:500])  # Print first 500 chars of parent element
                 break
-            
-            doctor_links = []
-            for elem in doctor_link_elements:
-                href = elem.get('href')
-                if href:
-                    # Ensure the URL is complete
-                    if not href.startswith("http"):
-                        href = 'https://www.justdial.com' + href
-                    if href not in doctor_links:
-                        doctor_links.append(href)
-            
-            total_doctors_found = len(doctor_links)
-            print(f"Found {total_doctors_found} {category} links on page {current_page}")
             
             # Create tasks for processing doctor pages concurrently
             async def process_doctor_page(link):

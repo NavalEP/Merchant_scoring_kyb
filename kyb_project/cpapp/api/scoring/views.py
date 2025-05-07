@@ -21,7 +21,9 @@ from .serializers import (
     ScoreRequestSerializer, ScoreResponseSerializer,
     ReviewScoringRequestSerializer
 )
+from dotenv import load_dotenv
 
+load_dotenv()
 # Define serializers inline for this view since they were removed from imports
 class ReviewCheckStatusSerializer(serializers.Serializer):
     """Serializer for checking the status of a review scoring request"""
@@ -103,6 +105,7 @@ class SearchAPIView(APIView):
                     'id': doctor.id,
                     'name': full_name.strip(),
                     'source': 'nmc',
+                    'speciality': 'Verified Doctor',
                     'location': doctor.address,
                     'experience': '',
                     'qualification': doctor.doctorDegree,
@@ -122,7 +125,8 @@ class SearchAPIView(APIView):
                     'id': doctor.id,
                     'name': doctor.full_name,
                     'source': 'nmc_dental',
-                    'location': doctor.state_medical_council if hasattr(doctor, 'state_medical_council') else '',
+                    'speciality': 'Dentist',
+                    'location': doctor.state_medical_council.replace(' State Dental Council', '').strip() if hasattr(doctor, 'state_medical_council') else '',
                     'experience': '',
                     'qualification': doctor.qualification,
                     'rating': '',
@@ -141,7 +145,7 @@ class SearchAPIView(APIView):
                     'name': doctor.name,
                     'source': 'bajaj',
                     'speciality': doctor.specialities,
-                    'location': doctor.clinic_location,
+                    'location': doctor.clinic_address,
                     'experience': doctor.experience,
                     'qualification': doctor.qualifications,
                     'rating': doctor.rating_percent,
@@ -302,6 +306,8 @@ class ScoreAPIView(APIView):
                 try:
                     entity = PractoDoctor.objects.get(id=entity_id)
                     name = entity.name
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                 except PractoDoctor.DoesNotExist:
                     return Response(
                         {"error": "Doctor not found"},
@@ -310,6 +316,8 @@ class ScoreAPIView(APIView):
             elif source == 'justdial':
                 try:
                     entity = JustDialDoctor.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = entity.doctor_name
                 except JustDialDoctor.DoesNotExist:
                     return Response(
@@ -319,6 +327,8 @@ class ScoreAPIView(APIView):
             elif source == 'nmc':
                 try:
                     entity = NMCDoctor.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = f"{entity.firstName} {entity.lastName if entity.lastName else ''}".strip()
                 except NMCDoctor.DoesNotExist:
                     return Response(
@@ -329,6 +339,8 @@ class ScoreAPIView(APIView):
                 from cpapp.models.nmc_dental import NMCDentalDoctor
                 try:
                     entity = NMCDentalDoctor.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = entity.full_name
                 except NMCDentalDoctor.DoesNotExist:
                     return Response(
@@ -338,6 +350,8 @@ class ScoreAPIView(APIView):
             elif source == 'bajaj':
                 try:
                     entity = BajajDoctor.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = entity.name
                 except BajajDoctor.DoesNotExist:
                     return Response(
@@ -347,6 +361,8 @@ class ScoreAPIView(APIView):
             elif source == 'savein':
                 try:
                     entity = SaveinDoctor.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = entity.name or entity.doctor_name
                 except SaveinDoctor.DoesNotExist:
                     return Response(
@@ -356,6 +372,8 @@ class ScoreAPIView(APIView):
             elif source == 'new_practo':
                 try:
                     entity = NewPractoDoctor.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = entity.doctor_name
                 except NewPractoDoctor.DoesNotExist:
                     return Response(
@@ -363,13 +381,22 @@ class ScoreAPIView(APIView):
                         status=status.HTTP_404_NOT_FOUND
                     )
             
-            # Score the doctor
+            if not entity:
+                return Response(
+                    {"error": f"Could not find doctor with id {entity_id} from source {source}"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+                
+            logger.info(f"Scoring doctor: {name} (ID: {entity_id}, Source: {source})")
+            # Score the doctor with the full entity data
             score_results = scoring_engine.score_doctor(entity, source)
             
         elif entity_type == 'clinic':
             if source == 'justdial':
                 try:
                     entity = JustDialClinic.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = entity.name
                 except JustDialClinic.DoesNotExist:
                     return Response(
@@ -379,6 +406,8 @@ class ScoreAPIView(APIView):
             elif source == 'googlemap':
                 try:
                     entity = GoogleMapData.objects.get(id=entity_id)
+                    # Ensure we have complete data for scoring
+                    entity.refresh_from_db()
                     name = entity.name
                 except GoogleMapData.DoesNotExist:
                     return Response(
@@ -391,7 +420,14 @@ class ScoreAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Score the clinic
+            if not entity:
+                return Response(
+                    {"error": f"Could not find clinic with id {entity_id} from source {source}"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+                
+            logger.info(f"Scoring clinic: {name} (ID: {entity_id}, Source: {source})")
+            # Score the clinic with the full entity data
             score_results = scoring_engine.score_clinic(entity, source)
         
         # Format response
@@ -430,7 +466,7 @@ class ReviewScoringAPIView(APIView):
             )
         
         # Get API key from environment or settings
-        api_key = os.getenv("OUTSCRAPER_API_KEY") or os.getenv("VITE_OUTSCRAPER_API_KEY")
+        api_key = os.getenv("OUTSCRAPER_API_KEY") or os.getenv("VITE_OUTSCRAPER_API_KEY") 
         logger.debug(f"API key present: {bool(api_key)}")
         
         if not api_key:
@@ -547,6 +583,9 @@ class ReviewScoringAPIView(APIView):
                     fake_reviews = total_reviews - genuine_reviews
                     avg_score = sum(r['review_score'] for r in scored_reviews) / total_reviews if total_reviews > 0 else 0
                     
+                    # Calculate merchant credibility score
+                    merchant_credibility = review_service.review_scorer.calculate_merchant_credibility_score(scored_reviews)
+                    
                     return Response({
                         "status": "completed",
                         "request_id": request_id,
@@ -554,7 +593,8 @@ class ReviewScoringAPIView(APIView):
                         "genuine_reviews": genuine_reviews,
                         "fake_reviews": fake_reviews,
                         "average_score": round(avg_score, 2),
-                        "scored_reviews": scored_reviews
+                        "scored_reviews": scored_reviews,
+                        "merchant_credibility": merchant_credibility
                     })
                 else:
                     return Response({
