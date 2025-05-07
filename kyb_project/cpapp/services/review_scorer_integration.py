@@ -146,9 +146,6 @@ class ReviewAnalysisService:
                 fake_reviews = total_reviews - genuine_reviews
                 avg_score = sum(r['review_score'] for r in scored_reviews) / total_reviews if total_reviews > 0 else 0
                 
-                # Step 6: Calculate merchant credibility score
-                merchant_credibility = self.review_scorer.calculate_merchant_credibility_score(scored_reviews)
-                
                 return {
                     "status": "completed",
                     "query": query,
@@ -156,8 +153,7 @@ class ReviewAnalysisService:
                     "genuine_reviews": genuine_reviews,
                     "fake_reviews": fake_reviews,
                     "average_score": round(avg_score, 2),
-                    "scored_reviews": scored_reviews,
-                    "merchant_credibility": merchant_credibility
+                    "scored_reviews": scored_reviews
                 }
             else:
                 return {
