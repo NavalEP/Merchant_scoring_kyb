@@ -7,6 +7,9 @@ from ...services.Google_review_out_scraper import OutscraperMapsReviewsAPI
 from .serializers import OutscraperReviewsSerializer, CustomSearchSerializer
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

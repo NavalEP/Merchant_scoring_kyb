@@ -221,7 +221,7 @@ async def scrape_justdial_doctors(location, num_pages=3):
     """Asynchronous scraper for JustDial doctors"""
     all_doctors = []
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    url = f"https://www.justdial.com/{location}/Doctors/nct-10892680"
+    url = f"https://www.justdial.com/{location}/IVF-Doctors/nct-10265455?trkid=559316-{location.lower()}&term=IVF&filters=%5B%7B%22e%22%3A%224%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&filtersApplied=%5B%7B%22mv%22%3A%221182%22%2C%22v%22%3A%5B%22ii01%22%5D%7D%5D&checkin=1745712000&checkout=1745798400"
     
     async with async_playwright() as p:
         browser, context = await setup_browser_context(p)

@@ -30,10 +30,10 @@ pip install nltk numpy requests
 
 ```bash
 # For Linux/Mac
-export OUTSCRAPER_API_KEY="your-api-key-here"
+export VITE_OUTSCRAPER_API_KEY="your-api-key-here"
 
 # For Windows PowerShell
-$env:OUTSCRAPER_API_KEY="your-api-key-here"
+$env:VITE_OUTSCRAPER_API_KEY="your-api-key-here"
 ```
 
 ## Quick Start

@@ -442,11 +442,7 @@ class DoctorScoringEngine:
                     if justdial_reg and justdial_reg == registration_no:
                         self.logger.debug(f"License {registration_no} verified via doctor data match")
                         return True
-                # Additional check for hpr_id in bajaj data
-                elif hasattr(doctor_data, 'hpr_id') and doctor_data.hpr_id:
-                    if doctor_data.hpr_id == registration_no:
-                        self.logger.debug(f"License {registration_no} verified via HPR ID match")
-                        return True
+                
                 # For NMC data, check against registrationNo
                 elif hasattr(doctor_data, 'registrationNo') and doctor_data.registrationNo:
                     if doctor_data.registrationNo == registration_no:
